@@ -7,6 +7,7 @@ DB_PATH: Final[Path] = PROJECT_ROOT / "ufdr_assistant.db"
 VECTOR_INDEX_PATH: Final[Path] = PROJECT_ROOT / "vector_index.joblib"
 METADATA_PATH: Final[Path] = PROJECT_ROOT / "vector_metadata.json"
 GRAPH_PATH: Final[Path] = PROJECT_ROOT / "graph.json"
+UPLOAD_ROOT: Final[Path] = PROJECT_ROOT / "uploads"
 
 SUSPICIOUS_TERMS: Final[list[str]] = [
     "btc",

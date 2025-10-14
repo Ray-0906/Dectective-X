@@ -3,11 +3,15 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BASE_URL;
 
 async function request(path, options = {}) {
   const url = `${API_BASE_URL}${path}`;
+  const isFormData = options.body instanceof FormData;
+  const customHeaders = options.headers ?? {};
+  const headers = {
+    ...(!isFormData && !('Content-Type' in customHeaders) ? { 'Content-Type': 'application/json' } : {}),
+    ...customHeaders,
+  };
+
   const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers ?? {}),
-    },
+    headers,
     ...options,
   });
 
@@ -29,6 +33,15 @@ export async function healthCheck() {
   } catch (error) {
     return { ok: false, error };
   }
+}
+
+export async function uploadUfdr(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request('/upload-ufdr', {
+    method: 'POST',
+    body: formData,
+  });
 }
 
 export async function triggerIngest({ caseId, reset = true, dataPath = null }) {

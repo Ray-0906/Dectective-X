@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+import logging
+import time
 from pathlib import Path
 from typing import Dict
 
@@ -22,17 +24,34 @@ from src.storage.database import (
 from src.storage.graph_store import GraphStore
 from src.storage.vector_store import VectorRecord, VectorStore
 
+logger = logging.getLogger(__name__)
+
+
+def _remove_with_retry(path: Path, attempts: int = 5, delay: float = 0.2) -> bool:
+    if not path.exists():
+        return True
+
+    for attempt in range(attempts):
+        try:
+            path.unlink()
+            return True
+        except PermissionError:
+            if attempt == attempts - 1:
+                logger.warning("Could not remove %s (file in use), proceeding with in-place reset", path)
+                return False
+            time.sleep(delay * (attempt + 1))
+    return False
+
 
 def reset_storage() -> None:
     engine.dispose()
-    if DB_PATH.exists():
-        DB_PATH.unlink()
-    if VECTOR_INDEX_PATH.exists():
-        VECTOR_INDEX_PATH.unlink()
-    if METADATA_PATH.exists():
-        METADATA_PATH.unlink()
-    if GRAPH_PATH.exists():
-        GRAPH_PATH.unlink()
+    db_removed = _remove_with_retry(DB_PATH)
+    if not db_removed:
+        Base.metadata.drop_all(bind=engine)
+
+    _remove_with_retry(VECTOR_INDEX_PATH)
+    _remove_with_retry(METADATA_PATH)
+    _remove_with_retry(GRAPH_PATH)
 
 
 def ingest(root: Path | None = None, case_id: str = "CASE-01", reset: bool = True) -> dict:

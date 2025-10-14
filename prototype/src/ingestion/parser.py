@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
+import logging
 from pathlib import Path
 from typing import Iterable, List
 
 import xmltodict
 
 from src.config import DATA_DIR, SUSPICIOUS_TERMS
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -152,18 +155,18 @@ class UFDRParser:
             if isinstance(messages, dict):
                 messages = [messages]
             for message in messages:
-                sender_name = message.get("sender")
-                receiver_name = message.get("receiver")
+                sender_name = message.get("sender") or message.get("@sender")
+                receiver_name = message.get("receiver") or message.get("@receiver")
                 sender_contact = self._get_or_create_contact(sender_name or "Unknown", sender_name)
                 receiver_contact = self._get_or_create_contact(receiver_name, receiver_name) if receiver_name else None
                 text = message.get("text", "").strip()
                 keywords = _extract_keywords(text)
                 records.append(
                     MessageRecord(
-                        external_id=message.get("@id") or _generate_message_id(len(records)),
+                        external_id=message.get("@id") or message.get("id") or _generate_message_id(len(records)),
                         sender_external_id=sender_contact.external_id,
                         receiver_external_id=receiver_contact.external_id if receiver_contact else None,
-                        timestamp=_parse_datetime(message.get("timestamp")),
+                        timestamp=_parse_datetime(message.get("timestamp") or message.get("@timestamp")),
                         content=text,
                         app_name=app,
                         media_path=_extract_media_path(message),
@@ -225,9 +228,14 @@ def _determine_country(phone: str | None) -> str | None:
 
 def _parse_datetime(value: str | None) -> datetime:
     if not value:
-        raise ValueError("Missing timestamp for record")
+        logger.warning("Missing timestamp for record; defaulting to current UTC time")
+        return datetime.now(timezone.utc)
     value = value.replace("Z", "+00:00")
-    return datetime.fromisoformat(value)
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        logger.warning("Invalid timestamp '%s'; defaulting to current UTC time", value)
+        return datetime.now(timezone.utc)
 
 
 def _extract_keywords(text: str) -> list[str]:

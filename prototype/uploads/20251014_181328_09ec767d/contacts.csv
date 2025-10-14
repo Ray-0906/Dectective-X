@@ -1,0 +1,3 @@
+ContactID,Name,PhoneNumber,Email,SourceApp
+C1,John Doe,+15551234567,john@example.com,WhatsApp
+C2,Jane Smith,+447700900123,jane@example.co.uk,Telegram

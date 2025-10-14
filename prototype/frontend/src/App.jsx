@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { API_BASE_URL, healthCheck, runQuery, triggerIngest } from './lib/api'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { API_BASE_URL, healthCheck, runQuery, triggerIngest, uploadUfdr } from './lib/api'
 
 const DEFAULT_QUERY = 'Show foreign crypto messages after 10 pm'
 
@@ -19,9 +19,12 @@ function App() {
 
   const [caseId, setCaseId] = useState('CASE-01')
   const [dataPath, setDataPath] = useState('')
+  const [ufdrFile, setUfdrFile] = useState(null)
   const [ingestLoading, setIngestLoading] = useState(false)
   const [ingestStats, setIngestStats] = useState(null)
   const [ingestError, setIngestError] = useState(null)
+
+  const fileInputRef = useRef(null)
 
   const [queryText, setQueryText] = useState(DEFAULT_QUERY)
   const [limit, setLimit] = useState(5)
@@ -51,12 +54,27 @@ function App() {
     setIngestLoading(true)
     setIngestError(null)
     try {
+      let resolvedDataPath = dataPath.trim() || null
+
+      if (ufdrFile) {
+        const uploadResponse = await uploadUfdr(ufdrFile)
+        const uploadedPath = uploadResponse.data_path ?? uploadResponse.path ?? null
+        if (!uploadedPath) {
+          throw new Error('Upload completed but no data path was returned by the server.')
+        }
+        resolvedDataPath = uploadedPath
+      }
+
       const response = await triggerIngest({
         caseId: caseId.trim() || 'CASE-01',
         reset: true,
-        dataPath: dataPath.trim() || null,
+        dataPath: resolvedDataPath,
       })
       setIngestStats(response.ingested)
+      if (ufdrFile && fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+      setUfdrFile(null)
     } catch (error) {
       setIngestError(error.message ?? 'Failed to ingest UFDR bundle')
     } finally {
@@ -121,7 +139,7 @@ function App() {
           <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6 shadow-lg shadow-slate-950/40">
             <h2 className="text-lg font-semibold text-white">Ingest UFDR data</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Trigger the backend pipeline to normalize contacts, chats, calls, and graph knowledge.
+              Upload a UFDR archive or provide a server path to trigger the backend pipeline that normalizes contacts, chats, calls, and graph knowledge.
             </p>
 
             <form className="mt-6 space-y-4" onSubmit={handleIngest}>
@@ -140,6 +158,29 @@ function App() {
               </div>
 
               <div className="grid gap-2">
+                <label htmlFor="ufdrFile" className="text-sm font-medium text-slate-300">
+                  Upload UFDR archive (optional)
+                </label>
+                <input
+                  id="ufdrFile"
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip,.ufdr,.tar,.gz,.tgz"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    setUfdrFile(file ?? null)
+                  }}
+                  className="block w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:text-slate-200"
+                />
+                <p className="text-xs text-slate-500">
+                  Supported formats: .ufdr, .zip, .tar.gz. The archive is extracted server-side and automatically used for ingestion.
+                </p>
+                {ufdrFile && (
+                  <span className="text-xs text-emerald-300">Selected file: {ufdrFile.name}</span>
+                )}
+              </div>
+
+              <div className="grid gap-2">
                 <label htmlFor="dataPath" className="text-sm font-medium text-slate-300">
                   Custom data path (optional)
                 </label>
@@ -149,7 +190,7 @@ function App() {
                   value={dataPath}
                   onChange={(event) => setDataPath(event.target.value)}
                   className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-500 focus:ring focus:ring-emerald-500/20"
-                  placeholder="Leave empty to use bundled sample"
+                  placeholder="Leave empty to use bundled sample or uploaded archive"
                 />
                 <p className="text-xs text-slate-500">Point to an extracted UFDR directory if you have your own dataset.</p>
               </div>

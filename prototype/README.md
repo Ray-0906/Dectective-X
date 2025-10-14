@@ -11,7 +11,7 @@ Refer to the parent document [AI-Powered Forensic UFDR Assistant – Complete SI
 - **Vector search** with TF-IDF embeddings for semantic message retrieval.
 - **Knowledge graph** (NetworkX) capturing people ↔ messages ↔ keywords ↔ calls ↔ locations.
 - **Rule-based NL query engine** that routes requests across SQL, vector index, and graph insights.
-- **FastAPI service** exposing `/ingest` and `/query` endpoints for rapid demo and integration.
+- **FastAPI service** exposing `/upload-ufdr` (multipart archive upload), `/ingest`, and `/query` endpoints for rapid demo and integration.
 
 ## 🧱 Project Layout
 
@@ -56,6 +56,12 @@ Start the FastAPI server:
 ../.venv/Scripts/uvicorn.exe src.app:app --reload --port 8000
 ```
 
+Upload a UFDR archive (optional – the server will extract it and return a data path):
+
+```powershell
+curl -X POST http://127.0.0.1:8000/upload-ufdr -F "file=@C:/path/to/export.ufdr"
+```
+
 Query the assistant (after ingestion) from a new terminal:
 
 ```powershell
@@ -68,6 +74,16 @@ Run the test suite:
 ```powershell
 ../.venv/Scripts/python.exe -m unittest discover -s tests
 ```
+
+Start the React dashboard to drive ingestion and queries visually:
+
+```powershell
+cd frontend
+npm install
+npm run dev -- --host
+```
+
+The dashboard lets you either upload a UFDR archive (zip/ufdr/tar.gz) or point to a server-side path; it then triggers ingestion and interactive querying through the FastAPI backend.
 
 ## 🔄 Data Flow & AI Orchestration
 
