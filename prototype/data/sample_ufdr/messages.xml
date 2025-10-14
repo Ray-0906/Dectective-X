@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<messages>
+  <chat id="whatsapp_001" app="WhatsApp" device="Samsung Galaxy S21">
+    <message id="msg_1">
+      <timestamp>2025-09-12T20:15:00Z</timestamp>
+      <sender>John Doe</sender>
+      <receiver>Jane Smith</receiver>
+      <text>Landing in Delhi tomorrow. Need to move the BTC stash fast.</text>
+      <media file="media/IMG_001.jpg" type="image" />
+    </message>
+    <message id="msg_2">
+      <timestamp>2025-09-12T20:18:00Z</timestamp>
+      <sender>Jane Smith</sender>
+      <receiver>John Doe</receiver>
+      <text>I have a broker in Dubai (+12025550123). He prefers late-night calls.</text>
+    </message>
+    <message id="msg_3">
+      <timestamp>2025-09-12T22:05:00Z</timestamp>
+      <sender>John Doe</sender>
+      <receiver>Bitcoin Broker</receiver>
+      <text>Need to convert 12 BTC into cash. Can we settle before 23:00?</text>
+    </message>
+  </chat>
+  <chat id="telegram_group_014" app="Telegram" device="Samsung Galaxy S21">
+    <message id="msg_4">
+      <timestamp>2025-09-14T09:55:00Z</timestamp>
+      <sender>Jane Smith</sender>
+      <receiver>John Doe</receiver>
+      <text>Use wallet 3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy. Send proof once done.</text>
+    </message>
+    <message id="msg_5">
+      <timestamp>2025-09-14T10:02:00Z</timestamp>
+      <sender>John Doe</sender>
+      <receiver>Jane Smith</receiver>
+      <text>Transfer initiated. Confirmation arrives in 40 minutes.</text>
+    </message>
+  </chat>
+</messages>

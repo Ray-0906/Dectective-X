@@ -1,0 +1,2 @@
+Placeholder for confiscated image file metadata.
+This text file stands in for an actual binary media artifact in the sample UFDR bundle.
