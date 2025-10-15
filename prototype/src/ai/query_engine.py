@@ -12,13 +12,16 @@ from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import selectinload
 
 from src.ai.query_planner import QueryPlan, plan_query
-from src.ai.report_generator import generate_report
-from src.config import SUSPICIOUS_TERMS
+from src.ai.report_generator import generate_brief, generate_report
+from src.config import LOCAL_TIMEZONE, LOCAL_TIMEZONE_NAME, SUSPICIOUS_TERMS
 from src.storage.database import Call, Contact, Location, Message, session_scope
 from src.storage.graph_store import GraphStore
 from src.storage.vector_store import VectorRecord, VectorStore
 
 logger = logging.getLogger(__name__)
+
+def _format_local_iso(timestamp: datetime) -> str:
+    return timestamp.astimezone(LOCAL_TIMEZONE).isoformat()
 
 STOP_WORDS: Set[str] = {
     "the",
@@ -104,6 +107,7 @@ class QueryResponse:
     locations: list[dict[str, Any]]
     graph_insights: list[str]
     report: str
+    narrative: str
 
 
 class QueryEngine:
@@ -246,6 +250,15 @@ class QueryEngine:
             ],
         )
 
+        narrative = generate_brief(
+            query=query,
+            summary=summary,
+            messages=messages_payload,
+            calls=calls_payload,
+            locations=locations_payload,
+            graph_insights=graph_payload,
+        )
+
         return QueryResponse(
             query=query,
             summary=summary,
@@ -254,6 +267,7 @@ class QueryEngine:
             locations=locations_payload,
             graph_insights=graph_payload,
             report=report,
+            narrative=narrative,
         )
 
     def _collect_messages(
@@ -352,7 +366,7 @@ class QueryEngine:
             payload.append(
                 {
                     "message_id": message.message_id,
-                    "timestamp": message.timestamp.astimezone(timezone.utc).isoformat(),
+                    "timestamp": _format_local_iso(message.timestamp),
                     "app": message.app_name,
                     "sender": sender.name if sender else "Unknown",
                     "receiver": receiver.name if receiver else None,
@@ -414,7 +428,7 @@ class QueryEngine:
             payload.append(
                 {
                     "message_id": message.message_id,
-                    "timestamp": message.timestamp.astimezone(timezone.utc).isoformat(),
+                    "timestamp": _format_local_iso(message.timestamp),
                     "app": message.app_name,
                     "sender": sender.name if sender else "Unknown",
                     "receiver": receiver.name if receiver else None,
@@ -461,7 +475,7 @@ class QueryEngine:
             payload.append(
                 {
                     "call_id": call.call_id,
-                    "timestamp": call.start_time.astimezone(timezone.utc).isoformat(),
+                    "timestamp": _format_local_iso(call.start_time),
                     "caller": caller.name if caller else None,
                     "callee": callee.name if callee else None,
                     "duration_seconds": call.duration_seconds,
@@ -502,7 +516,7 @@ class QueryEngine:
             payload.append(
                 {
                     "location_id": location.location_id,
-                    "timestamp": location.timestamp.astimezone(timezone.utc).isoformat(),
+                    "timestamp": _format_local_iso(location.timestamp),
                     "contact": contact.name if contact else None,
                     "latitude": location.latitude,
                     "longitude": location.longitude,
@@ -573,7 +587,7 @@ def _extract_time_filter(query: str) -> Optional[time]:
 
 def _extract_date_range(query: str) -> Tuple[Optional[datetime], Optional[datetime]]:
     text = query.lower()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(LOCAL_TIMEZONE)
 
     match = re.search(r"last\s+(\d+)\s+(day|days|week|weeks|month|months)", text)
     if match:
@@ -593,7 +607,7 @@ def _extract_date_range(query: str) -> Tuple[Optional[datetime], Optional[dateti
         second = _parse_date_fragment(between_match.group(2))
         return _normalize_range(first, second)
 
-    results = search_dates(query, settings={"TIMEZONE": "UTC", "RETURN_AS_TIMEZONE_AWARE": True})
+    results = search_dates(query, settings={"TIMEZONE": LOCAL_TIMEZONE_NAME, "RETURN_AS_TIMEZONE_AWARE": True})
     if results:
         parsed_dates = [
             dt
@@ -615,7 +629,7 @@ def _parse_date_fragment(fragment: str) -> Optional[datetime]:
     parsed = dateparser.parse(
         fragment,
         settings={
-            "TIMEZONE": "UTC",
+            "TIMEZONE": LOCAL_TIMEZONE_NAME,
             "RETURN_AS_TIMEZONE_AWARE": True,
             "PREFER_DAY_OF_MONTH": "first",
         },
@@ -627,20 +641,20 @@ def _normalize_range(start: Optional[datetime], end: Optional[datetime]) -> Tupl
     if not start and not end:
         return (None, None)
     if start and not start.tzinfo:
-        start = start.replace(tzinfo=timezone.utc)
+        start = start.replace(tzinfo=LOCAL_TIMEZONE)
     if end and not end.tzinfo:
-        end = end.replace(tzinfo=timezone.utc)
+        end = end.replace(tzinfo=LOCAL_TIMEZONE)
     if start and not end:
         end = start
     if end and not start:
         start = end
     if not start or not end:
         return (None, None)
-    start = start.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    end = end.astimezone(timezone.utc).replace(hour=23, minute=59, second=59, microsecond=999999)
-    if start > end:
-        start, end = end, start
-    return (start, end)
+    local_start = start.astimezone(LOCAL_TIMEZONE).replace(hour=0, minute=0, second=0, microsecond=0)
+    local_end = end.astimezone(LOCAL_TIMEZONE).replace(hour=23, minute=59, second=59, microsecond=999999)
+    if local_start > local_end:
+        local_start, local_end = local_end, local_start
+    return (local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc))
 
 
 def _timestamp_in_range(timestamp: datetime, date_range: Tuple[Optional[datetime], Optional[datetime]]) -> bool:

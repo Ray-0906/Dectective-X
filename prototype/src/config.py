@@ -1,3 +1,4 @@
+from datetime import timedelta, timezone
 from pathlib import Path
 from typing import Final
 
@@ -18,3 +19,6 @@ SUSPICIOUS_TERMS: Final[list[str]] = [
     "cash",
     "broker",
 ]
+
+LOCAL_TIMEZONE: Final[timezone] = timezone(timedelta(hours=5, minutes=30))
+LOCAL_TIMEZONE_NAME: Final[str] = "Asia/Kolkata"

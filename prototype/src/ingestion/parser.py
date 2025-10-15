@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 import logging
 from pathlib import Path
 from typing import Iterable, List
 
 import xmltodict
 
-from src.config import DATA_DIR, SUSPICIOUS_TERMS
+from src.config import DATA_DIR, LOCAL_TIMEZONE, SUSPICIOUS_TERMS
 
 logger = logging.getLogger(__name__)
 
@@ -228,14 +228,17 @@ def _determine_country(phone: str | None) -> str | None:
 
 def _parse_datetime(value: str | None) -> datetime:
     if not value:
-        logger.warning("Missing timestamp for record; defaulting to current UTC time")
-        return datetime.now(timezone.utc)
+        logger.warning("Missing timestamp for record; defaulting to current IST time")
+        return datetime.now(LOCAL_TIMEZONE)
     value = value.replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=LOCAL_TIMEZONE)
+        return parsed
     except ValueError:
-        logger.warning("Invalid timestamp '%s'; defaulting to current UTC time", value)
-        return datetime.now(timezone.utc)
+        logger.warning("Invalid timestamp '%s'; defaulting to current IST time", value)
+        return datetime.now(LOCAL_TIMEZONE)
 
 
 def _extract_keywords(text: str) -> list[str]:

@@ -101,10 +101,13 @@ function App() {
 
   const hasResults = useMemo(() => {
     if (!queryResult) return false
-    const { messages, calls, graph_insights: graphInsights } = queryResult
+    const { messages, calls, locations, graph_insights: graphInsights, narrative, report } = queryResult
     return (
       (messages && messages.length > 0) ||
       (calls && calls.length > 0) ||
+      (locations && locations.length > 0) ||
+      Boolean(narrative) ||
+      Boolean(report) ||
       (graphInsights && graphInsights.length > 0) ||
       Boolean(queryResult.summary)
     )
@@ -284,11 +287,18 @@ function App() {
               <h2 className="text-lg font-semibold text-white">Investigation results</h2>
               <p className="mt-1 text-sm text-slate-400">Summaries, raw evidence, and graph insights returned from the AI pipeline.</p>
             </div>
-            {queryResult?.summary && (
-              <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-200">
-                {queryResult.summary}
-              </span>
-            )}
+            <div className="flex flex-col gap-2 text-right md:items-end">
+              {queryResult?.summary && (
+                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-200">
+                  {queryResult.summary}
+                </span>
+              )}
+              {queryResult?.narrative && (
+                <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-medium text-indigo-200">
+                  LLM brief ready
+                </span>
+              )}
+            </div>
           </div>
 
           {!hasResults && (
@@ -304,6 +314,13 @@ function App() {
 
           {hasResults && (
             <div className="mt-6 space-y-8">
+              {queryResult?.narrative && (
+                <article className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-5 text-sm leading-relaxed text-indigo-100">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-indigo-200/90">LLM Investigator Brief</h3>
+                  <p className="mt-2 text-base text-indigo-50">{queryResult.narrative}</p>
+                </article>
+              )}
+
               {queryResult?.messages?.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Relevant messages</h3>
@@ -311,7 +328,7 @@ function App() {
                     {queryResult.messages.map((message) => (
                       <article key={message.message_id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
                         <div className="flex items-center justify-between text-xs text-slate-400">
-                          <span>{new Date(message.timestamp).toLocaleString()}</span>
+                          <span>{new Date(message.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
                           <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-indigo-200">
                             {message.app ?? 'Unknown app'}
                           </span>
@@ -352,7 +369,7 @@ function App() {
                     {queryResult.calls.map((call) => (
                       <article key={call.call_id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-200">
                         <div className="flex items-center justify-between text-xs text-slate-400">
-                          <span>{new Date(call.timestamp).toLocaleString()}</span>
+                          <span>{new Date(call.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
                           <span className="rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-fuchsia-200">
                             {call.type}
                           </span>
@@ -378,6 +395,35 @@ function App() {
                 </div>
               )}
 
+              {queryResult?.locations?.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Location trail</h3>
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    {queryResult.locations.map((location) => (
+                      <article key={location.location_id} className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 text-sm text-sky-100">
+                        <div className="flex items-center justify-between text-xs text-sky-200/80">
+                          <span>{new Date(location.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
+                          <span className="rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-100">
+                            {location.accuracy_meters ? `${location.accuracy_meters}m` : 'Location'}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-base font-semibold text-white">{location.contact ?? 'Unknown contact'}</p>
+                        <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <dt className="uppercase tracking-wide text-sky-200/70">Latitude</dt>
+                            <dd className="text-white">{location.latitude ?? '—'}</dd>
+                          </div>
+                          <div>
+                            <dt className="uppercase tracking-wide text-sky-200/70">Longitude</dt>
+                            <dd className="text-white">{location.longitude ?? '—'}</dd>
+                          </div>
+                        </dl>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {queryResult?.graph_insights?.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Graph insights</h3>
@@ -388,6 +434,15 @@ function App() {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {queryResult?.report && (
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Full narrative report</h3>
+                  <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm leading-relaxed text-slate-100">
+{queryResult.report}
+                  </pre>
                 </div>
               )}
             </div>

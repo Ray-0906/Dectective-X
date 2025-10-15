@@ -125,5 +125,8 @@ async def query(request: QueryRequest) -> dict:
         "summary": response.summary,
         "messages": response.messages,
         "calls": response.calls,
+        "locations": response.locations,
         "graph_insights": response.graph_insights,
+        "report": response.report,
+        "narrative": response.narrative,
     }

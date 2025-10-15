@@ -15,6 +15,7 @@ Refer to the parent document [AI-Powered Forensic UFDR Assistant – Complete SI
 - **Dynamic query reasoning** for natural-language time ranges, foreign contact filtering, and cross-channel evidence (messages, calls, locations).
 - **LLM-powered investigation reports** generated with Google Gemini when available, with a deterministic fallback summary when offline.
 - **LLM-assisted query planner** that interprets free-form prompts (“last location visited”, “top three overseas calls”) and turns them into structured filters when a Gemini key is configured.
+- **IST-aligned timelines** so every timestamp surfaces in India Standard Time for consistent investigator briefs and reports.
 
 ## 🧱 Project Layout
 
@@ -72,7 +73,7 @@ curl -X POST http://127.0.0.1:8000/query -H "Content-Type: application/json" `
 	  -d '{"query": "show foreign crypto messages after 10 pm"}'
 ```
 
-The JSON response now includes structured evidence arrays plus a Markdown `report` distilling key insights and recommended next steps.
+The JSON response now includes structured evidence arrays, an LLM-written `narrative` brief for fast scans, and a Markdown `report` distilling key insights with recommended next steps.
 
 Other prompts now supported out of the box:
 

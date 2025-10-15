@@ -130,3 +130,117 @@ def _fallback_report(payload: Mapping[str, Any]) -> str:
         locations=locations_section,
         graph=graph_section,
     ).strip()
+
+
+def generate_brief(
+    *,
+    query: str,
+    summary: str,
+    messages: List[Mapping[str, Any]],
+    calls: List[Mapping[str, Any]],
+    locations: List[Mapping[str, Any]],
+    graph_insights: List[str],
+) -> str:
+    """Return a compact, conversational answer describing the findings."""
+
+    payload = {
+        "query": query,
+        "summary": summary,
+        "messages": list(messages),
+        "calls": list(calls),
+        "locations": list(locations),
+        "graph_insights": list(graph_insights),
+    }
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash")
+
+    if api_key and genai:  # pragma: no branch
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(model_name)
+            prompt = _build_brief_prompt(payload)
+            response = model.generate_content(prompt)
+            text = getattr(response, "text", None)
+            if text:
+                return text.strip()
+            if getattr(response, "candidates", None):
+                for candidate in response.candidates:  # type: ignore[attr-defined]
+                    parts = getattr(candidate, "content", {}).get("parts", [])
+                    for part in parts:
+                        value = getattr(part, "text", None)
+                        if value:
+                            return value.strip()
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Gemini brief generation failed: %s", exc)
+
+    return _fallback_brief(payload)
+
+
+def _build_brief_prompt(payload: Mapping[str, Any]) -> str:
+    return dedent(
+        f"""
+        You are an investigative assistant. Write a concise answer (max 3 sentences) that directly addresses the analyst query
+        using the available evidence. Mention specific contacts, times, or locations when relevant and highlight any risky or
+        foreign activity. Respond with plain text only.
+
+        ## Query
+        {payload['query']}
+
+        ## Summary
+        {payload['summary']}
+
+        ## Messages
+        {payload['messages']}
+
+        ## Calls
+        {payload['calls']}
+
+        ## Locations
+        {payload['locations']}
+
+        ## Graph Insights
+        {payload['graph_insights']}
+        """
+    ).strip()
+
+
+def _fallback_brief(payload: Mapping[str, Any]) -> str:
+    parts: List[str] = []
+    summary = payload.get("summary") or "No direct matches were found."
+    parts.append(summary)
+
+    messages = payload.get("messages") or []
+    if messages:
+        latest = messages[0]
+        sender = latest.get("sender") or "an unknown sender"
+        receiver = latest.get("receiver") or "their contact"
+        timestamp = latest.get("timestamp")
+        content = latest.get("content")
+        snippet = f" Latest message from {sender} to {receiver}"
+        if timestamp:
+            snippet += f" on {timestamp}"
+        if content:
+            snippet += f" discusses {content[:80]}"
+        parts.append(snippet + ".")
+
+    locations = payload.get("locations") or []
+    if locations:
+        loc = locations[0]
+        contact = loc.get("contact") or "an unknown contact"
+        city = f"({loc.get('latitude')}, {loc.get('longitude')})"
+        timestamp = loc.get("timestamp")
+        parts.append(f" Most recent location fix for {contact} at {city}{' on ' + timestamp if timestamp else ''}.")
+
+    calls = payload.get("calls") or []
+    if calls:
+        call = calls[0]
+        caller = call.get("caller") or "Unknown caller"
+        callee = call.get("callee") or "unknown callee"
+        parts.append(f" Call activity includes {caller} speaking with {callee}.")
+
+    graph_insights = payload.get("graph_insights") or []
+    if graph_insights:
+        parts.append(f" Graph highlight: {graph_insights[0]}.")
+
+    return "".join(parts).strip()
