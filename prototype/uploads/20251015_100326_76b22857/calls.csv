@@ -1,0 +1,2 @@
+CallID,CallerID,CalleeID,Type,StartTime,DurationSeconds,Location
+CALL-001,C1,C2,Voice,2024-01-15T21:45:00Z,180,London

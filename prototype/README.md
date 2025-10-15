@@ -12,6 +12,8 @@ Refer to the parent document [AI-Powered Forensic UFDR Assistant – Complete SI
 - **Knowledge graph** (NetworkX) capturing people ↔ messages ↔ keywords ↔ calls ↔ locations.
 - **Rule-based NL query engine** that routes requests across SQL, vector index, and graph insights.
 - **FastAPI service** exposing `/upload-ufdr` (multipart archive upload), `/ingest`, and `/query` endpoints for rapid demo and integration.
+- **Dynamic query reasoning** for natural-language time ranges, foreign contact filtering, and cross-channel evidence (messages, calls, locations).
+- **LLM-powered investigation reports** generated with Google Gemini when available, with a deterministic fallback summary when offline.
 
 ## 🧱 Project Layout
 
@@ -69,10 +71,12 @@ curl -X POST http://127.0.0.1:8000/query -H "Content-Type: application/json" `
 	  -d '{"query": "show foreign crypto messages after 10 pm"}'
 ```
 
+The JSON response now includes structured evidence arrays plus a Markdown `report` distilling key insights and recommended next steps.
+
 Run the test suite:
 
 ```powershell
-../.venv/Scripts/python.exe -m unittest discover -s tests
+../.venv/Scripts/python.exe -m pytest
 ```
 
 Start the React dashboard to drive ingestion and queries visually:
@@ -84,6 +88,18 @@ npm run dev -- --host
 ```
 
 The dashboard lets you either upload a UFDR archive (zip/ufdr/tar.gz) or point to a server-side path; it then triggers ingestion and interactive querying through the FastAPI backend.
+
+### 🌐 Optional: Gemini report generation
+
+Set the following environment variables before starting the API if you want rich narrative reports to be composed by Google Gemini:
+
+```powershell
+$env:GEMINI_API_KEY = "<your_api_key>"
+# Optional override (defaults to gemini-1.5-flash)
+$env:GEMINI_MODEL_NAME = "gemini-1.5-pro"
+```
+
+If no key is provided, the backend will still return a concise Markdown report assembled from the retrieved evidence (messages, calls, locations, and graph insights).
 
 ## 🔄 Data Flow & AI Orchestration
 
