@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { API_BASE_URL, healthCheck, runQuery, triggerIngest, uploadUfdr } from './lib/api'
+import { healthCheck, runQuery, triggerIngest, uploadUfdr } from './lib/api'
 
 const DEFAULT_QUERY = 'Show foreign crypto messages after 10 pm'
 
-const STATUS_STYLES = {
-  checking: 'bg-slate-800/80 text-slate-200 border border-slate-700',
-  ok: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30',
-  error: 'bg-rose-500/10 text-rose-300 border border-rose-500/30',
+const HEALTH_DOT_CLASSES = {
+  checking: 'bg-amber-400 animate-pulse',
+  ok: 'bg-emerald-400',
+  error: 'bg-rose-500',
+}
+
+const HEALTH_STATUS_LABELS = {
+  checking: 'Checking API health…',
+  ok: 'API online',
+  error: 'API unreachable',
 }
 
 const formatLabel = (key) =>
@@ -144,6 +150,7 @@ const ErrorMessage = ({ message }) => (
 const InvestigationResult = ({ result }) => {
   if (!result) return null
   const hasContent = hasInvestigationContent(result)
+  const [reportExpanded, setReportExpanded] = useState(false)
 
   if (!hasContent) {
     return (
@@ -157,8 +164,8 @@ const InvestigationResult = ({ result }) => {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-0 shadow-2xl shadow-slate-950/40">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 bg-slate-900/80 px-6 py-4">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-0 shadow-2xl shadow-slate-950/30">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 bg-slate-900/75 px-6 py-4">
         <div>
           <h3 className="text-base font-semibold text-white">Investigation summary</h3>
           <p className="mt-1 text-xs text-slate-400">Evidence rendered in IST for frontline review.</p>
@@ -300,16 +307,34 @@ const InvestigationResult = ({ result }) => {
             </ul>
           </div>
         )}
-
         {result.report && (
           <div>
-            <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Full narrative report</h4>
-            <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm leading-relaxed text-slate-100">
-{result.report}
-            </pre>
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Full narrative report</h4>
+              <button
+                type="button"
+                onClick={() => setReportExpanded((value) => !value)}
+                aria-expanded={reportExpanded}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold text-slate-200 transition hover:border-slate-600 hover:text-white"
+              >
+                <span>{reportExpanded ? 'Hide report' : 'Show report'}</span>
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current" focusable="false">
+                  {reportExpanded ? (
+                    <path d="m6.293 14.707 5-5a1 1 0 0 1 1.414 0l5 5A1 1 0 0 1 16.293 16L12 11.707 7.707 16a1 1 0 0 1-1.414-1.293Z" />
+                  ) : (
+                    <path d="m7.707 9.293 4.293 4.293L16.293 9.3a1 1 0 0 1 1.414 1.414l-5 5a1 1 0 0 1-1.414 0l-5-5A1 1 0 0 1 7.707 9.293Z" />
+                  )}
+                </svg>
+              </button>
+            </div>
+            {reportExpanded ? (
+              <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm leading-relaxed text-slate-100">{result.report}</pre>
+            ) : (
+              <p className="mt-3 text-xs text-slate-500">Report hidden. Expand to review the full generated narrative.</p>
+            )}
           </div>
         )}
-      </div>
+        </div>
     </div>
   )
 }
@@ -398,6 +423,8 @@ function App() {
     const requestId = generateMessageId()
     const timestamp = new Date().toISOString()
 
+    setQueryText('')
+
     setHistory((previous) => [
       ...previous,
       { id: requestId, query: prompt, status: 'loading', timestamp, limit },
@@ -416,7 +443,6 @@ function App() {
         )
       )
       setQueryResult(response)
-      setQueryText('')
     } catch (error) {
       const message = error.message ?? 'Query failed'
       setHistory((previous) =>
@@ -448,7 +474,8 @@ function App() {
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  const healthBadgeClass = STATUS_STYLES[health.state] ?? STATUS_STYLES.checking
+  const healthDotClass = HEALTH_DOT_CLASSES[health.state] ?? HEALTH_DOT_CLASSES.checking
+  const healthStatusLabel = HEALTH_STATUS_LABELS[health.state] ?? HEALTH_STATUS_LABELS.checking
   const exportDisabled = !queryResult || !hasInvestigationContent(queryResult)
 
   const ingestStatsEntries = useMemo(() => {
@@ -457,39 +484,25 @@ function App() {
   }, [ingestStats])
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-900/80 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.4em] text-slate-500">UFDR Intelligence Suite</p>
-            <h1 className="mt-1 text-2xl font-semibold text-white md:text-3xl">Detective X — Analyst Console</h1>
-            <p className="mt-2 text-sm text-slate-400 md:max-w-2xl">
-              Blend UFDR ingestion, cross-channel retrieval, and Gemini-powered narratives inside a streamlined, chat-first investigation workspace.
-            </p>
-          </div>
-          <div className="flex flex-col items-start gap-2 md:items-end">
-            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${healthBadgeClass}`}>
-              <span className="h-2 w-2 rounded-full bg-current" />
-              {health.state === 'ok' && 'API online'}
-              {health.state === 'checking' && 'Checking API health…'}
-              {health.state === 'error' && 'API unreachable'}
-            </span>
-            <span className="text-xs text-slate-500">Base URL: {API_BASE_URL}</span>
-            {health.error && <span className="text-xs text-rose-400">{health.error.message ?? String(health.error)}</span>}
+    <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
+      <header className="border-b border-slate-900/80 bg-slate-950/95">
+        <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-6 px-6 py-4">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm uppercase tracking-[0.35em] text-slate-500">Detective X</p>
           </div>
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col md:flex-row">
-        <aside className="w-full flex-shrink-0 border-b border-slate-900/80 bg-slate-950/70 md:w-[360px] md:border-b-0 md:border-r">
-          <div className="flex h-full flex-col gap-8 overflow-y-auto px-6 py-8">
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5 shadow-lg shadow-slate-950/20">
+  <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
+        <aside className="w-full flex-shrink-0 border-b border-slate-900/80 bg-slate-950/70 md:w-[300px] md:border-b-0 md:border-r">
+          <div className="flex h-full flex-col gap-6 overflow-y-auto px-5 py-6">
+            <section className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-4 shadow-lg shadow-slate-950/10">
               <h2 className="text-sm font-semibold text-white">Ingest UFDR Collections</h2>
               <p className="mt-1 text-xs leading-relaxed text-slate-400">
                 Upload new UFDR archives or point to server paths to refresh the evidence lake. Each ingestion resets the SQLite store, vector index, and knowledge graph.
               </p>
 
-              <form className="mt-5 space-y-4" onSubmit={handleIngest}>
+              <form className="mt-4 space-y-4" onSubmit={handleIngest}>
                 <div className="grid gap-2">
                   <label htmlFor="caseId" className="text-xs font-medium text-slate-300">
                     Case ID
@@ -567,10 +580,10 @@ function App() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 text-xs text-slate-400 shadow-lg shadow-slate-950/20">
+            <section className="rounded-2xl border border-slate-800/80 bg-slate-900/50 p-4 text-xs text-slate-400 shadow-lg shadow-slate-950/10">
               <h2 className="text-sm font-semibold text-white">Workflow tips</h2>
               <ul className="mt-3 space-y-2 leading-relaxed">
-                <li>Use natural language like “latest crypto chats with overseas brokers last week”.</li>
+                <li>Use natural language like "latest crypto chats with overseas brokers last week".</li>
                 <li>Toggle advanced query limits from the chat composer when you need more evidence.</li>
                 <li>Export the latest investigation packet as Markdown for handover or briefing notes.</li>
               </ul>
@@ -578,11 +591,11 @@ function App() {
           </div>
         </aside>
 
-        <section className="flex flex-1 flex-col bg-slate-950/40">
-          <div className="flex items-center justify-between border-b border-slate-900/80 bg-slate-950/80 px-6 py-4">
-            <div>
-              <h2 className="text-lg font-semibold text-white">Investigation workspace</h2>
-              <p className="text-xs text-slate-400">Chat with the UFDR assistant. Responses render detailed evidence, always in IST.</p>
+  <section className="flex flex-1 flex-col overflow-hidden bg-slate-950/40">
+          <div className="flex items-center justify-between border-b border-slate-900/80 bg-slate-950/85 px-6 py-3">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold text-white">Investigation workspace</h2>
+              <p className="text-[11px] text-slate-400">Chat with the UFDR assistant. Responses render detailed evidence in IST.</p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -611,8 +624,8 @@ function App() {
             </div>
           </div>
 
-          <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-6 py-6">
-            <div className="mx-auto flex max-w-5xl flex-col gap-8">
+          <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-5 py-2 min-h-0 lg:px-7">
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
               {history.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/50 p-10 text-center">
                   <p className="text-sm text-slate-400">
@@ -639,8 +652,8 @@ function App() {
             </div>
           </div>
 
-          <div className="border-t border-slate-900/80 bg-slate-950/90 px-6 py-5">
-            <form className="mx-auto flex max-w-5xl flex-col gap-4" onSubmit={handleQuery}>
+          <div className="border-t border-slate-900/80 bg-slate-950/90 px-5 py-3 lg:px-7">
+            <form className="mx-auto flex w-full max-w-6xl flex-col gap-2.5" onSubmit={handleQuery}>
               <div className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 shadow-inner shadow-slate-950">
                 <textarea
                   id="query"
@@ -648,7 +661,7 @@ function App() {
                   value={queryText}
                   onChange={(event) => setQueryText(event.target.value)}
                   placeholder="Ask the assistant for chats, calls, locations, or summaries…"
-                  className="h-full flex-1 resize-none bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-600"
+                  className="min-h-[80px] flex-1 resize-none bg-transparent text-base text-slate-100 outline-none placeholder:text-slate-600"
                   disabled={queryLoading}
                 />
                 <button
@@ -710,13 +723,6 @@ function App() {
           </div>
         </section>
       </div>
-
-      <footer className="border-t border-slate-900/80 bg-slate-950/80 py-6">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-6 text-xs text-slate-500 md:flex-row md:items-center md:justify-between">
-          <span>Smart India Hackathon prototype • Detective X UFDR Assistant</span>
-          <span>Backend must be running on {API_BASE_URL}</span>
-        </div>
-      </footer>
     </div>
   )
 }
