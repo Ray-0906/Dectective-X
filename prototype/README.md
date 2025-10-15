@@ -16,6 +16,7 @@ Refer to the parent document [AI-Powered Forensic UFDR Assistant – Complete SI
 - **LLM-powered investigation reports** generated with Google Gemini when available, with a deterministic fallback summary when offline.
 - **LLM-assisted query planner** that interprets free-form prompts (“last location visited”, “top three overseas calls”) and turns them into structured filters when a Gemini key is configured.
 - **IST-aligned timelines** so every timestamp surfaces in India Standard Time for consistent investigator briefs and reports.
+- **Chat-first investigator console** with a Gemini brief, structured evidence panes, smooth loading cues, and one-click Markdown exports for case handovers.
 
 ## 🧱 Project Layout
 
