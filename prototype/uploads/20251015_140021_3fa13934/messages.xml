@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<messages>
+  <chat app="WhatsApp">
+    <message id="MSG-001" sender="John Doe" receiver="Jane Smith" timestamp="2024-01-15T21:47:00Z">
+      <text>Sending 2 BTC tonight.</text>
+    </message>
+    <message id="MSG-002" sender="Jane Smith" receiver="John Doe" timestamp="2024-01-15T21:48:30Z">
+      <text>Make sure the crypto wallet is ready before 10 PM.</text>
+    </message>
+  </chat>
+</messages>
