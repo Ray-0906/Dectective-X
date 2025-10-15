@@ -11,6 +11,7 @@ from dateparser.search import search_dates
 from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import selectinload
 
+from src.ai.query_planner import QueryPlan, plan_query
 from src.ai.report_generator import generate_report
 from src.config import SUSPICIOUS_TERMS
 from src.storage.database import Call, Contact, Location, Message, session_scope
@@ -142,6 +143,43 @@ class QueryEngine:
         if not include_messages and not include_calls and not include_locations:
             include_messages = True
 
+        message_limit = limit
+        call_limit = limit
+        location_limit = limit
+
+        plan: QueryPlan | None = plan_query(query)
+        if plan:
+            if plan.include_messages is not None:
+                include_messages = plan.include_messages
+            if plan.include_calls is not None:
+                include_calls = plan.include_calls
+            if plan.include_locations is not None:
+                include_locations = plan.include_locations
+            if plan.include_graph:
+                include_graph = True
+            if plan.foreign_only:
+                foreign_only = True
+            if plan.person_names:
+                person_ids.update(_match_contacts_by_name(plan.person_names, contacts))
+            if plan.topics:
+                topic_terms.update({topic.lower() for topic in plan.topics})
+            if plan.result_limit:
+                message_limit = call_limit = location_limit = max(1, plan.result_limit)
+            if plan.location_limit:
+                location_limit = max(1, plan.location_limit)
+            if plan.start_date or plan.end_date:
+                parsed_start = _parse_date_fragment(plan.start_date) if plan.start_date else None
+                parsed_end = _parse_date_fragment(plan.end_date) if plan.end_date else None
+                if parsed_start or parsed_end:
+                    date_range = _normalize_range(parsed_start or date_range[0], parsed_end or date_range[1])
+            if plan.time_after:
+                parsed_time = _parse_time_of_day(plan.time_after)
+                if parsed_time:
+                    time_filter = parsed_time
+
+        if not (include_messages or include_calls or include_locations):
+            include_messages = True
+
         messages_payload: list[dict[str, Any]] = []
         calls_payload: list[dict[str, Any]] = []
         locations_payload: list[dict[str, Any]] = []
@@ -156,7 +194,7 @@ class QueryEngine:
                 date_range=date_range,
                 time_filter=time_filter,
                 topic_terms=topic_terms,
-                limit=limit,
+                limit=message_limit,
             )
 
         if include_calls:
@@ -166,7 +204,7 @@ class QueryEngine:
                 foreign_only=foreign_only,
                 date_range=date_range,
                 time_filter=time_filter,
-                limit=limit,
+                limit=call_limit,
             )
 
         if include_locations:
@@ -175,7 +213,7 @@ class QueryEngine:
                 person_ids=person_ids,
                 date_range=date_range,
                 time_filter=time_filter,
-                limit=limit,
+                limit=location_limit,
             )
 
         if include_graph and self.graph_store:
@@ -557,7 +595,11 @@ def _extract_date_range(query: str) -> Tuple[Optional[datetime], Optional[dateti
 
     results = search_dates(query, settings={"TIMEZONE": "UTC", "RETURN_AS_TIMEZONE_AWARE": True})
     if results:
-        parsed_dates = [dt for fragment, dt in results if not _looks_like_time_only(fragment)]
+        parsed_dates = [
+            dt
+            for fragment, dt in results
+            if not _looks_like_time_only(fragment) and not _looks_like_noise_fragment(fragment)
+        ]
         if parsed_dates:
             if len(parsed_dates) == 1:
                 return _normalize_range(parsed_dates[0], parsed_dates[0])
@@ -592,7 +634,8 @@ def _normalize_range(start: Optional[datetime], end: Optional[datetime]) -> Tupl
         end = start
     if end and not start:
         start = end
-    assert start and end
+    if not start or not end:
+        return (None, None)
     start = start.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     end = end.astimezone(timezone.utc).replace(hour=23, minute=59, second=59, microsecond=999999)
     if start > end:
@@ -637,6 +680,13 @@ def _looks_like_time_only(fragment: str) -> bool:
     return bool(re.fullmatch(r"(?:after|before|around|at)?\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)", snippet))
 
 
+def _looks_like_noise_fragment(fragment: str) -> bool:
+    snippet = fragment.strip().lower()
+    if len(snippet) <= 2:
+        return True
+    return snippet in {"me", "yo", "tu", "il"}
+
+
 def _detect_person_ids(query_lower: str, contacts: Iterable[Contact]) -> Set[int]:
     ids: Set[int] = set()
     for contact in contacts:
@@ -664,3 +714,44 @@ def _contact_tokens(contact: Optional[Contact]) -> Set[str]:
         if len(digits) >= 6:
             tokens.add(digits)
     return tokens
+
+
+def _match_contacts_by_name(names: Iterable[str], contacts: Iterable[Contact]) -> Set[int]:
+    target_tokens: List[Set[str]] = []
+    for name in names:
+        lowered = name.strip().lower()
+        if not lowered:
+            continue
+        token_set = set(re.findall(r"[a-z0-9]{3,}", lowered))
+        token_set.add(lowered)
+        target_tokens.append(token_set)
+    if not target_tokens:
+        return set()
+
+    matched: Set[int] = set()
+    for contact in contacts:
+        contact_tokens = _contact_tokens(contact)
+        if not contact_tokens:
+            continue
+        for token_set in target_tokens:
+            if token_set.intersection(contact_tokens):
+                matched.add(contact.contact_id)
+                break
+    return matched
+
+
+def _parse_time_of_day(text: str) -> Optional[time]:
+    snippet = text.strip().lower()
+    match = re.search(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", snippet)
+    if not match:
+        return None
+    hour = int(match.group(1))
+    minute = int(match.group(2) or 0)
+    meridiem = match.group(3)
+    if meridiem == "pm" and hour != 12:
+        hour += 12
+    if meridiem == "am" and hour == 12:
+        hour = 0
+    hour = max(0, min(hour % 24, 23))
+    minute = max(0, min(minute, 59))
+    return time(hour=hour, minute=minute)

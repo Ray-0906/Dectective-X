@@ -35,6 +35,15 @@ class PipelineIntegrationTest(unittest.TestCase):
         self.assertGreater(len(response.messages), 0)
         self.assertIn("crypto", response.summary.lower())
 
+    def test_query_engine_returns_location(self) -> None:
+        ingest(reset=True)
+        engine = QueryEngine()
+        response = engine.answer("show me last location visited")
+        self.assertGreater(len(response.locations), 0)
+        first_location = response.locations[0]
+        self.assertIn(first_location["contact"], {"Bitcoin Broker", "Jane Smith", "John Doe"})
+        self.assertIn("location", response.summary.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

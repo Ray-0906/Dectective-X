@@ -14,6 +14,7 @@ Refer to the parent document [AI-Powered Forensic UFDR Assistant – Complete SI
 - **FastAPI service** exposing `/upload-ufdr` (multipart archive upload), `/ingest`, and `/query` endpoints for rapid demo and integration.
 - **Dynamic query reasoning** for natural-language time ranges, foreign contact filtering, and cross-channel evidence (messages, calls, locations).
 - **LLM-powered investigation reports** generated with Google Gemini when available, with a deterministic fallback summary when offline.
+- **LLM-assisted query planner** that interprets free-form prompts (“last location visited”, “top three overseas calls”) and turns them into structured filters when a Gemini key is configured.
 
 ## 🧱 Project Layout
 
@@ -73,6 +74,12 @@ curl -X POST http://127.0.0.1:8000/query -H "Content-Type: application/json" `
 
 The JSON response now includes structured evidence arrays plus a Markdown `report` distilling key insights and recommended next steps.
 
+Other prompts now supported out of the box:
+
+- `"show me last location visited"`
+- `"top 3 foreign calls about cash transfers"`
+- `"connections between Jane Smith and Bitcoin Broker last week"`
+
 Run the test suite:
 
 ```powershell
@@ -89,9 +96,9 @@ npm run dev -- --host
 
 The dashboard lets you either upload a UFDR archive (zip/ufdr/tar.gz) or point to a server-side path; it then triggers ingestion and interactive querying through the FastAPI backend.
 
-### 🌐 Optional: Gemini report generation
+### 🌐 Optional: Gemini enhancements
 
-Set the following environment variables before starting the API if you want rich narrative reports to be composed by Google Gemini:
+Set the following environment variables before starting the API to unlock LLM-powered query planning and narrative report generation via Google Gemini:
 
 ```powershell
 $env:GEMINI_API_KEY = "<your_api_key>"
@@ -99,7 +106,7 @@ $env:GEMINI_API_KEY = "<your_api_key>"
 $env:GEMINI_MODEL_NAME = "gemini-1.5-pro"
 ```
 
-If no key is provided, the backend will still return a concise Markdown report assembled from the retrieved evidence (messages, calls, locations, and graph insights).
+With no key present, the backend falls back to heuristic query parsing and still returns a concise Markdown report assembled from the retrieved evidence (messages, calls, locations, and graph insights).
 
 ## 🔄 Data Flow & AI Orchestration
 
